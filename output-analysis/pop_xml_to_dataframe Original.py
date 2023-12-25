@@ -9,12 +9,10 @@ class XmlListConfig(list):
                 # treat like dict
                 if len(element) == 1 or element[0].tag != element[1].tag:
                     self.append(XmlDictConfig(element))
-                # treat like list
-                elif element[0].tag == element[1].tag:
+                else:
                     self.append(XmlListConfig(element))
             elif element.text:
-                text = element.text.strip()
-                if text:
+                if text := element.text.strip():
                     self.append(text)
 
 
@@ -41,9 +39,7 @@ class XmlDictConfig(dict):
             if key in self:
                 value = self.pop(key)
                 if type(value) is not list:
-                    listOfDicts = []
-                    listOfDicts.append(value)
-                    listOfDicts.append(aDict[key])
+                    listOfDicts = [value, aDict[key]]
                     self.update({key: listOfDicts})
                 else:
                     value.append(aDict[key])
@@ -53,7 +49,7 @@ class XmlDictConfig(dict):
 
 def strtotime(time):
     ftr = [3600,60,1]
-    return sum([a*b for a,b in zip(ftr, map(int,time.split(':')))])
+    return sum(a*b for a,b in zip(ftr, map(int,time.split(':'))))
 
 """
 /*
@@ -72,9 +68,9 @@ def xml_to_dataframe(path,itr):
     tree = ElementTree.parse('I:\\My Drive\\2019\\Fall\\Calibration\\congestion pricing\\' + path + '\\BUILT.100.experienced_plans_' + str(itr) + '.xml')
     root = tree.getroot()
     xmldict = XmlDictConfig(root)
-     
+
     print('data loaded',datetime.now())
-    
+
     # initiate activity related list object
     id_person = []
     score = []
@@ -83,7 +79,7 @@ def xml_to_dataframe(path,itr):
     activity_data = []
     start_time = []
     end_time = []
-    
+
     # initiate mode related list object
     id_data_mode = []
     mode_data = []
@@ -91,7 +87,7 @@ def xml_to_dataframe(path,itr):
     dep_time=[]
     trav_time=[]
     dist_data = []
-    
+
     for type_tag in root.findall('person'):
         count = 0
         for scr in type_tag.findall('plan'):
@@ -104,11 +100,7 @@ def xml_to_dataframe(path,itr):
             end_time.append(act.get('end_time'))
             if act.get('type') != 'pt interaction':
                 count = count + 1
-                id_trip.append(count)
-            else:
-                id_trip.append(count)
-            
-            
+            id_trip.append(count)
     # for type_tag in root.findall('person'):
         if len(type_tag.findall('plan/leg')) == 0:
             id_data_mode.append(type_tag.get('id'))
@@ -117,17 +109,17 @@ def xml_to_dataframe(path,itr):
             dep_time.append(None)
             trav_time.append(None)
             dist_data.append(None)
-     
+
         for i, mode in enumerate(type_tag.findall('plan/leg')):
             id_data_mode.append(type_tag.get('id'))
             mode_data.append(mode.get('mode'))
             dep_time.append(mode.get('dep_time'))
             trav_time.append(mode.get('trav_time'))
-            
-            
+
+
             route = mode.find('route')
             dist_data.append(route.get('distance'))        
-            
+
             if i == len(type_tag.findall('plan/leg')) - 1:
                 id_data_mode.append(type_tag.get('id'))
                 mode_data.append(None)
@@ -135,8 +127,8 @@ def xml_to_dataframe(path,itr):
                 dep_time.append(None)
                 trav_time.append(None)
                 dist_data.append(None)
-                
-    
+
+
             route = mode.find('route').text
             if type(route) is str:
                 if route[:2] != 'PT':
@@ -148,11 +140,11 @@ def xml_to_dataframe(path,itr):
                 route_data.append(routelist[0])
             except:
                 route_data.append(route)
-    
+
     actList = list(zip(id_data_act, activity_data, start_time, end_time,id_trip))
     modeList = list(zip(mode_data,dep_time,trav_time,route_data,dist_data))
     scoreList = list(zip(id_person,score))
-    
+
     # actList = list(zip(id_data_act, activity_data, start_time, end_time))
     # modeList = list(zip(mode_data))
     df_act = pd.DataFrame(actList, columns=['id', 'activity', 'start_time', 'end_time','trip_id'])
@@ -161,12 +153,12 @@ def xml_to_dataframe(path,itr):
     # df_mode.loc[-1] = [None,None,None,None,None]  # adding a row
     # df_mode.index = df_mode.index + 1  # shifting index
     df_mode = df_mode.sort_index()  # sorting by indexdf_merged = pd.concat([df_act, df_mode], axis=1)
-            
-        
+
+
     df_merged = pd.concat([df_act, df_mode], axis=1)
     # df_merged = df_merged[pd.notnull(df_merged['mode'])]
     backup = df_merged
-    
+
     print('Transform finished!',datetime.now())
     # for i in range(len(df_merged)):
     #     print(i)
@@ -179,12 +171,12 @@ def xml_to_dataframe(path,itr):
     #     if df_merged['mode'][i] == 'transit_walk':
     #         if df_merged.activity[i] != 'pt interaction':
     #             df_merged['mode'][i] = 'walk'
-    
+
     temp = df_merged.loc[df_merged['mode']=='transit_walk',:]
     temp = temp.loc[temp.activity != 'pt interaction',:]
     df_merged.loc[temp.index,'mode'] = 'walk'
-    
-    
+
+
     df_merged.to_csv('I:\\My Drive\\2019\\Fall\\Calibration\\congestion pricing\\' + path + '\\pricing_' + str(itr) + '.csv')
     mode_share = df_merged.groupby(df_merged['mode'])['mode'].count()
     # mode_share.to_csv('I:\\My Drive\\2019\\Fall\\Calibration\\congestion pricing\\test\\modeshare_' + str(itr) + '.csv', header = True)
